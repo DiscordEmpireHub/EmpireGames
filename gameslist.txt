@@ -1,0 +1,35 @@
+prefix-platform-name-min_players-max_players
+
+* game-tabletop-dots_and_boxes-2-4
+* game-tabletop-tic_tac_toe-2-2
+* game-tabletop-gomoku-2-2
+* game-tabletop-battleship-2-2
+* game-board-chess-2-2
+* game-board-checkers-2-2
+* game-board-ludo-2-4
+* game-board-reversi-2-2
+* game-card-truco-2-4
+* game-card-hearts-4-4
+* game-card-blackjack-2-8
+* game-card-president-3-8
+* game-card-solitaire-1-1
+* game-tabletop-minesweeper-1-1
+* game-tabletop-sudoku-1-1
+* game-arcade-tetris-1-1
+* game-card-poker_texas_holdem-2-8
+* game-card-spades-4-4
+* game-card-crazy_eights-2-7
+* game-board-dominoes-2-4
+* game-arcade-sheep_fight-2-2
+* game-party-word_association-4-8
+* game-board-backgammon-2-2
+* game-board-mancala-2-2
+* game-card-cheat-3-10
+* game-card-rummy-2-4
+* game-tabletop-yahtzee-2-6
+* game-tabletop-shuffleboard-2-4
+* game-arcade-snake-1-1
+* game-arcade-pong-2-2
+
+---
+
