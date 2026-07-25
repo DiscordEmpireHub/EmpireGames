@@ -40,6 +40,8 @@ export interface GameTableState {
   phase: string;
   slots: PlayerSlot[];
   spectators: Spectator[];
+  /** JSON serializado do TicTacToeState autoritativo (ver server/GameLogic.ts). */
+  gameStateJson: string;
 }
 
 export interface UserProfile {
@@ -71,4 +73,6 @@ export interface GameModuleProps {
   hubContext: HubContext;
   coreSdk: CoreSdk;
   roomState: GameTableState;
+  /** Envia uma ação de jogo para o servidor autoritativo (GameTableRoom via Colyseus). */
+  sendGameAction: (action: unknown) => void;
 }

@@ -1,69 +1,106 @@
-import { useState } from "react";
-import {
-  applyAction,
-  createInitialState,
-  type TicTacToeState,
-} from "../server/GameLogic";
+import { useEffect, useMemo, useRef } from "react";
+import { buildAssetCatalog } from "./board/assetCatalog";
+import { CANVAS_HEIGHT_PX, CANVAS_WIDTH_PX, cellOverlayRect } from "./board/boardLayout";
+import { determineSfxToPlay } from "./board/sfxSelection";
+import { useEngineLifecycle } from "./hooks/useEngineLifecycle";
 import { CoreService } from "./services/CoreService";
+import type { Cell, TicTacToeState } from "../server/GameLogic";
 import type { GameModuleProps } from "./types";
 import "./tic-tac-toe.css";
 
-// IMPORTANTE: GameTableRoom (EmpireCore) ainda não tem um hook de ação de jogo
-// (ver EmpireGamesDevelopment/GAME-DEVELOPMENT-GUIDE.md#lacunas-conhecidas, item 4).
-// Por isso este componente roda como demonstração LOCAL (hot-seat, 2 jogadores na
-// mesma tela) usando as mesmas funções puras de server/GameLogic.ts que rodariam
-// no servidor — não é multiplayer autoritativo de ponta a ponta ainda.
-const PLAYER_X_ID = "local-player-x";
-const PLAYER_O_ID = "local-player-o";
+// requires_engine = true (game.ini) — este jogo renderiza via PhaserGameEngine
+// (canvas). GameEngine.onObjectClick() existe, mas células vazias não têm
+// nenhum sprite renderizado (só marcas X/O ganham objeto ao serem colocadas),
+// então continuamos usando botões DOM transparentes sobrepostos para capturar
+// clique em qualquer célula, ocupada ou não.
+const THEME = "classic" as const;
+const ASSETS = buildAssetCatalog(THEME);
 
-export default function TicTacToe({ hubContext, coreSdk }: GameModuleProps) {
-  const [state, setState] = useState<TicTacToeState>(() => createInitialState(PLAYER_X_ID, PLAYER_O_ID));
-  const coreService = new CoreService(coreSdk);
-  void coreService; // TODO: chamar coreService.reportMatchResult ao final da partida, quando o endpoint de servidor existir
+function parseGameState(gameStateJson: string): TicTacToeState | null {
+  if (!gameStateJson) return null;
+  try {
+    return JSON.parse(gameStateJson) as TicTacToeState;
+  } catch {
+    return null;
+  }
+}
 
+function statusText(state: TicTacToeState | null, localUserId: string): string {
+  if (!state) return "Aguardando estado da partida...";
+  if (state.winnerUserId) {
+    const winningMark = state.marksByUserId[state.winnerUserId];
+    return state.winnerUserId === localUserId ? `Você venceu (${winningMark})!` : `${winningMark} venceu.`;
+  }
+  if (state.isDraw) return "Empate!";
+  return `Vez de ${state.currentTurn}`;
+}
+
+function isCellPlayable(state: TicTacToeState, cell: Cell, localMark: string | undefined, localUserId: string): boolean {
   const isGameOver = state.winnerUserId !== null || state.isDraw;
+  return cell === null && !isGameOver && localMark === state.currentTurn && state.marksByUserId[localUserId] === localMark;
+}
 
-  function handleCellClick(cellIndex: number) {
-    const actingUserId = state.currentTurn === "X" ? PLAYER_X_ID : PLAYER_O_ID;
+export default function TicTacToe({ hubContext, coreSdk, roomState, sendGameAction }: GameModuleProps) {
+  const coreService = useMemo(() => new CoreService(coreSdk), [coreSdk]);
+  void coreService; // TODO: reportMatchResult quando o endpoint existir no CoreSdk real
 
-    try {
-      setState(applyAction(state, actingUserId, { type: "PLACE_MARK", cellIndex }));
-    } catch {
-      // Movimento inválido (célula ocupada, fora do turno, jogo já terminou) — ignora.
-    }
+  const { containerRef, status, errorMessage, engineServiceRef, boardRendererRef } = useEngineLifecycle(THEME);
+  const gameState = parseGameState(roomState.gameStateJson);
+  const previousStateRef = useRef<TicTacToeState | null>(null);
+
+  useEffect(() => {
+    if (status !== "ready" || !gameState) return;
+    const boardRenderer = boardRendererRef.current;
+    const engineService = engineServiceRef.current;
+    if (!boardRenderer || !engineService) return;
+
+    boardRenderer.syncMarks(gameState.board);
+
+    const sfxAssetId = determineSfxToPlay(previousStateRef.current, gameState, hubContext.user.userId, ASSETS);
+    if (sfxAssetId) engineService.play({ assetId: sfxAssetId });
+
+    previousStateRef.current = gameState;
+  }, [status, gameState, hubContext.user.userId, boardRendererRef, engineServiceRef]);
+
+  function handleCellClick(cellIndex: number): void {
+    if (!gameState) return;
+    const localMark = gameState.marksByUserId[hubContext.user.userId];
+    if (!isCellPlayable(gameState, gameState.board[cellIndex], localMark, hubContext.user.userId)) return;
+
+    engineServiceRef.current?.play({ assetId: ASSETS.uiClick });
+    sendGameAction({ type: "PLACE_MARK", cellIndex });
   }
 
-  function handleRestart() {
-    setState(createInitialState(PLAYER_X_ID, PLAYER_O_ID));
+  if (status === "error") {
+    return <div className="tic-tac-toe tic-tac-toe--error">Falha ao carregar a Engine: {errorMessage}</div>;
   }
-
-  const statusText = state.winnerUserId
-    ? `Vitória de ${state.winnerUserId === PLAYER_X_ID ? "X" : "O"}!`
-    : state.isDraw
-      ? "Empate!"
-      : `Vez de ${state.currentTurn}`;
 
   return (
     <div className="tic-tac-toe">
       <p>Jogando como: {hubContext.user.username}</p>
-      <p className="tic-tac-toe__status">{statusText}</p>
-      <div className="tic-tac-toe__board">
-        {state.board.map((cell, index) => (
-          <button
-            key={index}
-            type="button"
-            className="tic-tac-toe__cell"
-            disabled={cell !== null || isGameOver}
-            onClick={() => handleCellClick(index)}
-            aria-label={`Célula ${index + 1}`}
-          >
-            {cell ?? ""}
-          </button>
-        ))}
+      <div className="tic-tac-toe__canvas-wrapper" style={{ width: CANVAS_WIDTH_PX, height: CANVAS_HEIGHT_PX }}>
+        <div ref={containerRef} className="tic-tac-toe__canvas" />
+        {status === "loading" && <p className="tic-tac-toe__loading">Carregando Engine...</p>}
+        {status === "ready" && gameState && (
+          <div className="tic-tac-toe__overlay">
+            {gameState.board.map((_, index) => {
+              const rect = cellOverlayRect(index);
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  className="tic-tac-toe__cell-button"
+                  style={{ left: `${rect.leftPct}%`, top: `${rect.topPct}%`, width: `${rect.widthPct}%`, height: `${rect.heightPct}%` }}
+                  disabled={gameState.board[index] !== null}
+                  aria-label={`Célula ${index + 1}`}
+                  onClick={() => handleCellClick(index)}
+                />
+              );
+            })}
+            <p className="tic-tac-toe__status">{statusText(gameState, hubContext.user.userId)}</p>
+          </div>
+        )}
       </div>
-      <button type="button" onClick={handleRestart}>
-        Reiniciar
-      </button>
     </div>
   );
 }

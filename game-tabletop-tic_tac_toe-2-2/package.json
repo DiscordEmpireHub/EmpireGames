@@ -10,6 +10,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@empire/asset-loader": "file:../../EmpireEngine/packages/asset-loader",
+    "@empire/engine-core": "file:../../EmpireEngine/packages/core",
+    "@empire/engine-phaser-adapter": "file:../../EmpireEngine/packages/phaser-adapter",
+    "@empire/engine-types": "file:../../EmpireEngine/packages/types",
+    "phaser": "^3.90.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "ini": "^4.1.3",

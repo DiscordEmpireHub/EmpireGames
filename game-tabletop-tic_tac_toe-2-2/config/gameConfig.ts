@@ -32,6 +32,8 @@ export const gameConfigSchema = z.object({
   client_entry_url: z.string(),
   thumbnail_url: z.string(),
 
+  active: booleanValue,
+
   dependencies_shared_modules: commaSeparatedList,
   dependencies_external_libraries: commaSeparatedList,
   dependencies_styles: commaSeparatedList,

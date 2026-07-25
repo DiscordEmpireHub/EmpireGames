@@ -29,9 +29,10 @@ function createProps(): GameModuleProps {
     phase: "waiting",
     slots: [],
     spectators: [],
+    gameStateJson: "",
   };
 
-  return { hubContext, coreSdk, roomState };
+  return { hubContext, coreSdk, roomState, sendGameAction: vi.fn() };
 }
 
 describe("TicTacToe", () => {
